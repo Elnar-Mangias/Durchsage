@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Доска объявлений</title>
+<style>
+  :root {
+    --bg: #eef2f6;
+    --ink: #17212b;
+    --muted: #5d6b7a;
+    --line: #d3dbe4;
+    --card: #ffffff;
+    --accent: #1f4fd8;
+    --accent-ink: #ffffff;
+    --danger: #b3261e;
+    --ok: #1b7a43;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  header {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 20px 8px;
+  }
+  header h1 { margin: 0; font-size: 2rem; letter-spacing: -0.01em; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  /* Форма */
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .form-panel { position: sticky; top: 16px; }
+  @media (max-width: 800px) { .form-panel { position: static; } }
+  .panel h2 { margin: 0 0 14px; font-size: 1.15rem; }
+
+  label { display: block; font-weight: 600; font-size: 0.9rem; margin: 14px 0 4px; }
+  input[type="text"], input[type="number"], textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font: inherit;
+    background: #fff;
+    color: var(--ink);
+  }
+  textarea { min-height: 96px; resize: vertical; }
+  input[type="file"] { width: 100%; font: inherit; }
+  :focus-visible { outline: 3px solid #86a5ff; outline-offset: 1px; }
+
+  .preview {
+    display: none;
+    margin-top: 8px;
+    width: 100%;
+    max-height: 180px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+  }
+  .preview.show { display: block; }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 6px;
+    border: 0;
+    padding: 11px 16px;
+    font-weight: 600;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 18px; }
+  .btn-primary:hover { background: #173fb0; }
+  .btn-primary:disabled { background: #8da3e6; cursor: wait; }
+  .btn-secondary { background: #fff; border: 1px solid var(--line); color: var(--ink); }
+  .btn-secondary:disabled { opacity: .5; cursor: default; }
+
+  .status { margin-top: 12px; font-size: 0.92rem; min-height: 1.4em; }
+  .status.error { color: var(--danger); }
+  .status.ok { color: var(--ok); }
+
+  /* Список */
+  .list-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+  .list-head h2 { margin: 0; font-size: 1.15rem; }
+  .list-head span { color: var(--muted); font-size: 0.9rem; }
+
+  .ads { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+  .ad {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .ad-img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: #dfe6ee;
+    display: block;
+  }
+  .ad-noimg {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: #dfe6ee;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+  }
+  .ad-body { padding: 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .ad-price { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; }
+  .ad-title { font-weight: 600; margin: 0; font-size: 1.02rem; }
+  .ad-desc { margin: 0; color: var(--muted); font-size: 0.92rem; overflow-wrap: anywhere; }
+
+  .empty, .loading, .list-error {
+    background: var(--card);
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    padding: 28px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .list-error { color: var(--danger); border-style: solid; }
+  .list-error button { margin-top: 12px; }
+
+  .pager { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 18px; }
+  .pager span { color: var(--muted); font-size: 0.92rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Доска объявлений</h1>
+  <p>Смотрите объявления и размещайте свои.</p>
+</header>
+
+<main>
+  <!-- Форма отправки (POST) -->
+  <section class="panel form-panel">
+    <h2>Новое объявление</h2>
+    <form id="adForm" novalidate>
+      <label for="title">Заголовок</label>
+      <input type="text" id="title" name="title" maxlength="100" required>
+
+      <label for="description">Описание</label>
+      <textarea id="description" name="description" required></textarea>
+
+      <label for="price">Цена</label>
+      <input type="number" id="price" name="price" min="0" step="0.01" required>
+
+      <label for="image">Фото</label>
+      <input type="file" id="image" name="image" accept="image/*" required>
+      <img id="preview" class="preview" alt="Предпросмотр фото">
+
+      <button type="submit" class="btn-primary" id="submitBtn">Опубликовать</button>
+      <div id="formStatus" class="status" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <!-- Список (GET) -->
+  <section>
+    <div class="list-head">
+      <h2>Объявления</h2>
+      <span id="totalInfo"></span>
+    </div>
+    <div id="adsContainer"></div>
+    <div class="pager" id="pager" hidden>
+      <button class="btn-secondary" id="prevBtn">Назад</button>
+      <span id="pageInfo"></span>
+      <button class="btn-secondary" id="nextBtn">Вперёд</button>
+    </div>
+  </section>
+</main>
+
+<script>
+  const BASE_URL = "https://inai-col1.fishrungames.com";
+  const LIMIT = 30;
+  let currentPage = 1;
+
+  const container = document.getElementById("adsContainer");
+  const totalInfo = document.getElementById("totalInfo");
+  const pager = document.getElementById("pager");
+  const pageInfo = document.getElementById("pageInfo");
+  const prevBtn = document.getElementById("prevBtn");
+  const nextBtn = document.getElementById("nextBtn");
+
+  const form = document.getElementById("adForm");
+  const submitBtn = document.getElementById("submitBtn");
+  const formStatus = document.getElementById("formStatus");
+  const imageInput = document.getElementById("image");
+  const preview = document.getElementById("preview");
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function formatPrice(value) {
+    const num = Number(value);
+    if (Number.isNaN(num)) return "";
+    return num.toLocaleString("ru-RU") + " сом";
+  }
+
+  function imageSrc(url) {
+    if (!url) return null;
+    return url.startsWith("http") ? url : BASE_URL + url;
+  }
+
+  function renderAd(ad) {
+    const card = el("article", "ad");
+    const src = imageSrc(ad.image_url);
+    if (src) {
+      const img = el("img", "ad-img");
+      img.src = src;
+      img.alt = ad.title || "Фото объявления";
+      img.loading = "lazy";
+      img.onerror = () => img.replaceWith(el("div", "ad-noimg", "Фото не загрузилось"));
+      card.appendChild(img);
+    } else {
+      card.appendChild(el("div", "ad-noimg", "Без фото"));
+    }
+    const body = el("div", "ad-body");
+    body.appendChild(el("div", "ad-price", formatPrice(ad.price)));
+    body.appendChild(el("h3", "ad-title", ad.title));
+    body.appendChild(el("p", "ad-desc", ad.description));
+    card.appendChild(body);
+    return card;
+  }
+
+  async function loadAds(page = 1) {
+    container.replaceChildren(el("div", "loading", "Загружаем объявления…"));
+    try {
+      const response = await fetch(`${BASE_URL}/ads?page=${page}&limit=${LIMIT}`);
+      if (!response.ok) throw new Error("Сервер вернул ошибку " + response.status);
+      const data = await response.json();
+
+      const items = data.items || [];
+      currentPage = data.page || page;
+      const limit = data.limit || LIMIT;
+      const total = data.total ?? items.length;
+
+      totalInfo.textContent = "Всего: " + total;
+
+      if (items.length === 0) {
+        container.replaceChildren(el("div", "empty", "Пока нет ни одного объявления. Опубликуйте первое."));
+      } else {
+        const grid = el("div", "ads");
+        // Новые объявления сверху
+        [...items].reverse().forEach(ad => grid.appendChild(renderAd(ad)));
+        container.replaceChildren(grid);
+      }
+
+      const pages = Math.max(1, Math.ceil(total / limit));
+      pager.hidden = pages <= 1;
+      pageInfo.textContent = `Страница ${currentPage} из ${pages}`;
+      prevBtn.disabled = currentPage <= 1;
+      nextBtn.disabled = currentPage >= pages;
+    } catch (err) {
+      const box = el("div", "list-error", "Не удалось загрузить объявления. " + err.message);
+      const retry = el("button", "btn-secondary", "Попробовать снова");
+      retry.type = "button";
+      retry.onclick = () => loadAds(currentPage);
+      box.appendChild(el("br"));
+      box.appendChild(retry);
+      container.replaceChildren(box);
+    }
+  }
+
+  prevBtn.onclick = () => loadAds(currentPage - 1);
+  nextBtn.onclick = () => loadAds(currentPage + 1);
+
+  // Предпросмотр выбранного фото
+  imageInput.addEventListener("change", () => {
+    const file = imageInput.files[0];
+    if (file) {
+      preview.src = URL.createObjectURL(file);
+      preview.classList.add("show");
+    } else {
+      preview.classList.remove("show");
+    }
+  });
+
+  function setStatus(text, type) {
+    formStatus.textContent = text;
+    formStatus.className = "status " + (type || "");
+  }
+
+  // Отправка объявления (POST, multipart/form-data)
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const title = form.title.value.trim();
+    const description = form.description.value.trim();
+    const price = form.price.value;
+    const image = imageInput.files[0];
+
+    if (!title || !description || price === "" || !image) {
+      setStatus("Заполните все поля и выберите фото.", "error");
+      return;
+    }
+    if (Number(price) < 0) {
+      setStatus("Цена не может быть отрицательной.", "error");
+      return;
+    }
+
+    const data = new FormData();
+    data.append("title", title);
+    data.append("description", description);
+    data.append("price", price);
+    data.append("image", image);
+
+    submitBtn.disabled = true;
+    setStatus("Отправляем…");
+
+    try {
+      // Content-Type вручную НЕ задаём: браузер сам добавит multipart с boundary
+      const response = await fetch(`${BASE_URL}/ads`, { method: "POST", body: data });
+      if (!response.ok) throw new Error("Сервер вернул ошибку " + response.status);
+      await response.json();
+
+      form.reset();
+      preview.classList.remove("show");
+      setStatus("Объявление опубликовано.", "ok");
+      loadAds(1);
+    } catch (err) {
+      setStatus("Не удалось опубликовать. " + err.message, "error");
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  loadAds(1);
+</script>
+</body>
+</html>
